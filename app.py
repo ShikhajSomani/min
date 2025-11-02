@@ -9,10 +9,9 @@ from tensorflow.keras.applications.vgg16 import preprocess_input
 import requests
 import pandas as pd
 
-
 # ----------- CONFIGURATION -----------
 MODEL_PATH = "predictWaste12.h5"  # Model filename
-DRIVE_FILE_ID = "1SD8B4iRZf8hEnzC7BmNY4WX6fGuGxn4Y"  # Replace if you re-upload model
+DRIVE_FILE_ID = "1SD8B4iRZf8hEnzC7BmNY4WX6fGuGxn4Y"  # Replace if you upload a new model
 LABELS = [
     "cardboard",
     "compost",
@@ -85,6 +84,7 @@ st.set_page_config(page_title="Garbage Classifier", layout="centered")
 st.title("♻ Garbage Classification — Streamlit App")
 st.write("Upload a photo of waste and the model will predict its class.")
 
+
 if ensure_model_exists():
     try:
         model = load_model_cached(MODEL_PATH)
@@ -108,14 +108,21 @@ if ensure_model_exists():
             top_conf = float(preds[top_idx])
             label_name = LABELS[top_idx] if top_idx < len(LABELS) else f"Unknown class {top_idx}"
 
-            if top_conf < 0.5:
-                st.warning(f"⚠ Model is uncertain ({top_conf*100:.2f}% confidence). "
-                           "Try retaking the image under better lighting.")
-            else:
-                st.success(f"### 🏷 Prediction: *{label_name}*")
-                st.subheader(f"Confidence: {top_conf * 100:.2f}%")
+            # --- Display result nicely ---
+            st.write("### 🏷 Prediction Result")
 
-            # Top-5 predictions table
+            if top_conf < 0.4:
+                st.error(f"⚠ The model is unsure ({top_conf*100:.2f}% confidence).")
+                st.write(f"Still, it *thinks this might be* **{label_name}**.")
+                st.caption("This might happen if lighting, background, or angle affects the image.")
+            elif top_conf < 0.7:
+                st.warning(f"🤔 Possible match: **{label_name}** ({top_conf*100:.2f}% confidence)")
+                st.caption("Confidence is moderate. Try uploading a clearer photo.")
+            else:
+                st.success(f"### ✅ Predicted: *{label_name}*")
+                st.subheader(f"Confidence: {top_conf*100:.2f}%")
+
+            # --- Top-5 predictions table ---
             st.markdown("---")
             st.write("#### Top Probabilities")
             top_indices = np.argsort(preds)[::-1][:5]
@@ -126,7 +133,7 @@ if ensure_model_exists():
             })
             st.dataframe(df_table, hide_index=True, use_container_width=True)
 
-            # Bar chart for all classes
+            # --- Bar chart for all classes ---
             st.write("#### Class Probability Distribution")
             df_chart = pd.DataFrame({
                 "Class": LABELS,
