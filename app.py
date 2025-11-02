@@ -6,30 +6,31 @@ import io
 import os
 import tensorflow as tf
 from tensorflow.keras.applications.vgg16 import preprocess_input
-import requests  # ✅ use requests instead of gdown
+import requests
 
 
 # ---------- Auto-download model from Google Drive ----------
 MODEL_PATH = "predictWaste12.h5"
 DRIVE_FILE_ID = "1SD8B4iRZf8hEnzC7BmNY4WX6fGuGxn4Y"
 
-if not os.path.exists(MODEL_PATH):
-    with st.spinner("Downloading model from Google Drive..."):
-        # Use the official export=download URL
+def ensure_model_exists():
+    if not os.path.exists(MODEL_PATH):
+        st.info("Model not found locally — downloading from Google Drive...")
         url = f"https://drive.google.com/uc?export=download&id={DRIVE_FILE_ID}"
         response = requests.get(url)
         if response.status_code == 200:
             with open(MODEL_PATH, "wb") as f:
                 f.write(response.content)
-            st.success("Model downloaded successfully!")
+            st.success("✅ Model downloaded successfully!")
         else:
-            st.error(f"Failed to download model. Status code: {response.status_code}")
-            st.stop()
+            st.error("❌ Failed to download model. Please check your Drive link.")
+            return False
+    return True
 # ------------------------------------------------------------
 
 
 @st.cache_resource
-def load_model(path=MODEL_PATH):
+def load_model_cached(path):
     return tf.keras.models.load_model(path)
 
 
@@ -64,16 +65,58 @@ def predict(model, img_array):
 
 # Streamlit UI
 st.set_page_config(page_title="Garbage Classifier", layout="centered")
-st.title("Garbage Classification — Streamlit App")
+st.title("♻️ Garbage Classification — Streamlit App")
 st.write("Upload a photo of waste and the model will predict its class.")
 
-model_path = MODEL_PATH
-labels_path = st.sidebar.text_input("Labels path (json)", value="labels.json")
+# Ensure model is available
+if ensure_model_exists():
+    try:
+        model = load_model_cached(MODEL_PATH)
+        labels = load_labels("labels.json")
 
-if not os.path.exists(model_path):
-    st.sidebar.error(f"Model file not found at: {model_path}. Please check path or upload model.")
+        # Image upload section (this will always show if model loads)
+        uploaded = st.file_uploader("📸 Upload an image", type=["png", "jpg", "jpeg"])
+
+        if uploaded is not None:
+            image = Image.open(io.BytesIO(uploaded.read()))
+            st.image(image, caption="Uploaded image", use_column_width=True)
+
+            st.write("---")
+            st.write("🔄 Processing...")
+
+            img_arr = preprocess_image(image)
+            preds = predict(model, img_arr)
+
+            if preds.ndim == 2 and preds.shape[0] == 1:
+                preds = preds[0]
+
+            top_idx = int(np.argmax(preds))
+            top_conf = float(preds[top_idx])
+            label_name = labels[top_idx] if top_idx < len(labels) else str(top_idx)
+
+            st.success(f"Prediction: **{label_name}** ({top_conf * 100:.2f}% confidence)")
+
+            # Top-5 predictions
+            top_k = min(5, len(preds))
+            top_indices = np.argsort(preds)[-top_k:][::-1]
+            rows = [
+                {"label": (labels[i] if i < len(labels) else str(i)), "probability": float(preds[i])}
+                for i in top_indices
+            ]
+            st.table(rows)
+
+            # Bar chart
+            try:
+                import pandas as pd
+                df = pd.DataFrame({(labels[i] if i < len(labels) else str(i)): float(preds[i]) for i in range(len(preds))}, index=[0])
+                st.bar_chart(df.T)
+            except Exception:
+                pass
+
+        else:
+            st.info("👆 Upload an image to get a prediction.")
+
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
 else:
-    model = load_model(model_path)
-    labels = load_labels(labels_path)
-
-
+    st.warning("Model could not be loaded. Please check your link or try again later.")
