@@ -74,4 +74,6 @@ if not os.path.exists(model_path):
     st.sidebar.error(f"Model file not found at: {model_path}. Please check path or upload model.")
 else:
     model = load_model(model_path)
-    labels = load_labels_
+    labels = load_labels(labels_path)
+
+
