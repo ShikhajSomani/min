@@ -7,4 +7,3 @@ jupyterlab
 pandas
 streamlit
 requests
-
