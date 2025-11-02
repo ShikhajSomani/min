@@ -4,6 +4,7 @@ matplotlib
 Pillow
 h5py
 jupyterlab
-
+pandas
 streamlit
-gdown
+requests
+
