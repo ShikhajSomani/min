@@ -6,10 +6,23 @@ import io
 import os
 import tensorflow as tf
 from tensorflow.keras.applications.vgg16 import preprocess_input
+import gdown  # ✅ for Google Drive model download
+
+
+# ---------- Auto-download model from Google Drive ----------
+MODEL_PATH = "predictWaste12.h5"
+DRIVE_FILE_ID = "1SD8B4iRZf8hEnzC7BmNY4WX6fGuGxn4Y"
+
+if not os.path.exists(MODEL_PATH):
+    with st.spinner("Downloading model from Google Drive..."):
+        url = f"https://drive.google.com/uc?id={DRIVE_FILE_ID}"
+        gdown.download(url, MODEL_PATH, quiet=False)
+        st.success("Model downloaded successfully!")
+# ------------------------------------------------------------
 
 
 @st.cache_resource
-def load_model(path="predictWaste12.h5"):
+def load_model(path=MODEL_PATH):
     return tf.keras.models.load_model(path)
 
 
@@ -19,23 +32,13 @@ def load_labels(path="labels.json"):
             labels = json.load(f)
             if isinstance(labels, dict):
                 # allow either list or dict mapping index->label
-                # if dict, sort by key to make a list
                 labels = [labels[str(i)] if str(i) in labels else labels[i] for i in range(len(labels))]
             return labels
-    # fallback: make the user edit this list to match model training order
+    # fallback list
     return [
-        "class_0",
-        "class_1",
-        "class_2",
-        "class_3",
-        "class_4",
-        "class_5",
-        "class_6",
-        "class_7",
-        "class_8",
-        "class_9",
-        "class_10",
-        "class_11",
+        "class_0", "class_1", "class_2", "class_3", "class_4",
+        "class_5", "class_6", "class_7", "class_8", "class_9",
+        "class_10", "class_11",
     ]
 
 
@@ -44,7 +47,7 @@ def preprocess_image(img: Image.Image, target_size=(224, 224)) -> np.ndarray:
     img = img.resize(target_size)
     arr = np.array(img).astype(np.float32)
     arr = np.expand_dims(arr, axis=0)
-    arr = preprocess_input(arr)  # VGG16 preprocessing
+    arr = preprocess_input(arr)
     return arr
 
 
@@ -58,7 +61,7 @@ st.set_page_config(page_title="Garbage Classifier", layout="centered")
 st.title("Garbage Classification — Streamlit App")
 st.write("Upload a photo of waste and the model will predict its class.")
 
-model_path = st.sidebar.text_input("Model path", value="predictWaste12.h5")
+model_path = MODEL_PATH
 labels_path = st.sidebar.text_input("Labels path (json)", value="labels.json")
 
 if not os.path.exists(model_path):
@@ -74,35 +77,4 @@ else:
         st.image(image, caption="Uploaded image", use_column_width=True)
 
         st.write("---")
-        st.write("Processing...")
-
-        img_arr = preprocess_image(image, target_size=(224, 224))
-        preds = predict(model, img_arr)
-
-        if preds.ndim == 2 and preds.shape[0] == 1:
-            preds = preds[0]
-
-        top_idx = int(np.argmax(preds))
-        top_conf = float(preds[top_idx])
-        label_name = labels[top_idx] if top_idx < len(labels) else str(top_idx)
-
-        st.success(f"Prediction: {label_name} ({top_conf * 100:.2f}% confidence)")
-
-        # Display top-5 predictions
-        top_k = min(5, len(preds))
-        top_indices = np.argsort(preds)[-top_k:][::-1]
-        rows = [
-            {"label": (labels[i] if i < len(labels) else str(i)), "probability": float(preds[i])}
-            for i in top_indices
-        ]
-        st.table(rows)
-
-        # Optional bar chart
-        try:
-            import pandas as pd
-            df = pd.DataFrame({(labels[i] if i < len(labels) else str(i)): float(preds[i]) for i in range(len(preds))}, index=[0])
-            st.bar_chart(df.T)
-        except Exception:
-            pass
-    else:
-        st.info("Upload an image to get a prediction.")
+        st
