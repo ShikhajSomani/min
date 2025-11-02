@@ -6,7 +6,7 @@ import io
 import os
 import tensorflow as tf
 from tensorflow.keras.applications.vgg16 import preprocess_input
-import gdown  # ✅ for Google Drive model download
+import requests  # ✅ use requests instead of gdown
 
 
 # ---------- Auto-download model from Google Drive ----------
@@ -15,9 +15,16 @@ DRIVE_FILE_ID = "1SD8B4iRZf8hEnzC7BmNY4WX6fGuGxn4Y"
 
 if not os.path.exists(MODEL_PATH):
     with st.spinner("Downloading model from Google Drive..."):
-        url = f"https://drive.google.com/uc?id={DRIVE_FILE_ID}"
-        gdown.download(url, MODEL_PATH, quiet=False)
-        st.success("Model downloaded successfully!")
+        # Use the official export=download URL
+        url = f"https://drive.google.com/uc?export=download&id={DRIVE_FILE_ID}"
+        response = requests.get(url)
+        if response.status_code == 200:
+            with open(MODEL_PATH, "wb") as f:
+                f.write(response.content)
+            st.success("Model downloaded successfully!")
+        else:
+            st.error(f"Failed to download model. Status code: {response.status_code}")
+            st.stop()
 # ------------------------------------------------------------
 
 
@@ -31,7 +38,6 @@ def load_labels(path="labels.json"):
         with open(path, "r") as f:
             labels = json.load(f)
             if isinstance(labels, dict):
-                # allow either list or dict mapping index->label
                 labels = [labels[str(i)] if str(i) in labels else labels[i] for i in range(len(labels))]
             return labels
     # fallback list
@@ -68,13 +74,4 @@ if not os.path.exists(model_path):
     st.sidebar.error(f"Model file not found at: {model_path}. Please check path or upload model.")
 else:
     model = load_model(model_path)
-    labels = load_labels(labels_path)
-
-    uploaded = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
-
-    if uploaded is not None:
-        image = Image.open(io.BytesIO(uploaded.read()))
-        st.image(image, caption="Uploaded image", use_column_width=True)
-
-        st.write("---")
-        st
+    labels = load_labels_
